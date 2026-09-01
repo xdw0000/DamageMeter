@@ -1,0 +1,97 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download Dalamud (staging)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://github.com/goatcorp/dalamud-distrib/raw/main/stg/latest.zip" -OutFile dalamud.zip
+          Expand-Archive dalamud.zip -DestinationPath "$env:APPDATA\XIVLauncher\addon\Hooks\dev" -Force
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore src/DamageMeter.csproj
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build src/DamageMeter.csproj --configuration Release --no-restore
+
+      - name: Get version
+        id: ver
+        shell: pwsh
+        run: |
+          $xml = [xml](Get-Content src/DamageMeter.csproj)
+          $ver = ($xml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Package
+        shell: pwsh
+        run: |
+          # DalamudPackager (included in Dalamud.NET.Sdk) creates the zip automatically
+          $zip = "src/bin/Release/DamageMeter-CN/latest.zip"
+          if (-not (Test-Path $zip)) { Write-Error "DalamudPackager zip not found at $zip"; exit 1 }
+          Copy-Item $zip DamageMeter.zip
+          Write-Host "Packaged: $((Get-Item DamageMeter.zip).Length) bytes"
+
+      - name: Create/update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.VERSION }}
+          name: DamageMeter v${{ steps.ver.outputs.VERSION }}
+          files: DamageMeter.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update pluginmaster.json
+        shell: pwsh
+        run: |
+          $ts  = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          $ver = "${{ steps.ver.outputs.VERSION }}"
+          $dl  = "https://github.com/xdw0000/DamageMeter-CN/releases/download/v$ver/DamageMeter.zip"
+          $json = @(Get-Content pluginmaster.json -Raw | ConvertFrom-Json)
+          $json[0].AssemblyVersion      = "$ver.0"
+          $json[0].LastUpdated          = $ts
+          $json[0].DownloadLinkInstall  = $dl
+          $json[0].DownloadLinkTesting  = $dl
+          $json[0].DownloadLinkUpdate   = $dl
+          $json | ConvertTo-Json -Depth 10 -AsArray | Set-Content pluginmaster.json
+
+          git config user.name  "David"
+          git config user.email "xdw0000@users.noreply.github.com"
+          git add pluginmaster.json
+          git diff --cached --quiet || git commit -m "chore: update pluginmaster v$ver [skip ci]"
+
+          # Rebase onto latest remote before pushing; two CI runs can race on main.
+          # On conflict (pluginmaster.json timestamp churn) prefer our freshly written version.
+          git pull --rebase origin main -X theirs 2>&1 | Out-Host
+          if ($LASTEXITCODE -ne 0) {
+            git rebase --abort
+            Write-Host "rebase failed; retrying with merge"
+            git pull origin main --no-edit 2>&1 | Out-Host
+          }
+          git push
+
+      - name: Purge jsDelivr cache (CN users)
+        shell: pwsh
+        run: |
+          # jsDelivr caches GitHub files; purge so 卫月/Dalamud fetches the fresh pluginmaster
+          try { Invoke-WebRequest "https://purge.jsdelivr.net/gh/xdw0000/DamageMeter-CN@main/pluginmaster.json" -UseBasicParsing | Out-Null; Write-Host "jsDelivr cache purged" }
+          catch { Write-Host "jsDelivr purge failed (non-fatal): $_" }

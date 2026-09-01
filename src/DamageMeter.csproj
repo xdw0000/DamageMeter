@@ -1,0 +1,36 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.3.0</Version>
+    <AssemblyName>DamageMeter-CN</AssemblyName>
+    <RootNamespace>DamageMeter</RootNamespace>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- DalamudPackager manifest fields -->
+  <PropertyGroup>
+    <Author>David</Author>
+    <Name>DamageMeter-CN</Name>
+    <Punchline>Real-time combat damage/healing meter for FFXIV.</Punchline>
+    <Description>Tracks damage dealt, healing done, DPS, HPS, overhealing, damage taken, and more in real time for you and your party. Stores up to 20 recent combat sessions automatically, with manual save slots for encounters you want to keep. Fully configurable display, bar colors, and window styles.</Description>
+    <ApplicableVersion>any</ApplicableVersion>
+    <DalamudApiLevel>15</DalamudApiLevel>
+    <Tags>combat;utility;meter;dps;parsing</Tags>
+    <RepoUrl>https://github.com/xdw0000/DamageMeter-CN</RepoUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp"                    Version="3.118.0-preview.1.2" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.118.0-preview.1.2" />
+  </ItemGroup>
+
+  <!-- Auto-copy DLL + SkiaSharp to devPlugins after Debug build (local dev only) -->
+  <Target Name="CopyToDevPlugins" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFolder="$(APPDATA)\XIVLauncher\devPlugins\DamageMeter-CN\"
+          OverwriteReadOnlyFiles="true" />
+    <Copy SourceFiles="$(OutputPath)SkiaSharp.dll"
+          DestinationFolder="$(APPDATA)\XIVLauncher\devPlugins\DamageMeter-CN\"
+          OverwriteReadOnlyFiles="true"
+          Condition="Exists('$(OutputPath)SkiaSharp.dll')" />
+  </Target>
+</Project>

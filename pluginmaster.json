@@ -1,0 +1,28 @@
+[
+  {
+    "Author": "David",
+    "Name": "DamageMeter-CN",
+    "InternalName": "DamageMeter-CN",
+    "AssemblyVersion": "0.3.0.0",
+    "Punchline": "Real-time combat damage/healing meter for FFXIV.",
+    "Description": "Tracks damage dealt, healing done, DPS, HPS, overhealing, damage taken, and more in real time for you and your party. Stores up to 20 recent combat sessions with manual save slots. Fully configurable display, bar colors, and window styles.",
+    "ApplicableVersion": "any",
+    "DalamudApiLevel": 15,
+    "Tags": [
+      "combat",
+      "utility",
+      "meter",
+      "dps",
+      "parsing"
+    ],
+    "RepoUrl": "https://github.com/xdw0000/DamageMeter-CN",
+    "DownloadLinkInstall": "https://github.com/xdw0000/DamageMeter-CN/releases/download/v0.3.0/DamageMeter.zip",
+    "DownloadLinkTesting": "https://github.com/xdw0000/DamageMeter-CN/releases/download/v0.3.0/DamageMeter.zip",
+    "DownloadLinkUpdate": "https://github.com/xdw0000/DamageMeter-CN/releases/download/v0.3.0/DamageMeter.zip",
+    "LastUpdated": 1788259811,
+    "DownloadCount": 0,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "AcceptsFeedback": false
+  }
+]
