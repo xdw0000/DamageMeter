@@ -326,13 +326,17 @@ public sealed class MainWindow : IDisposable
                     ImGui.SetWindowPos(ImGui.GetWindowPos() + ImGui.GetIO().MouseDelta);
             }
 
-            var closeTL = new Vector2(_imgOrigin.X + _canvasW - 20f * ui, _imgOrigin.Y + 4f * ui);
+            var closeSize = new Vector2(18f * ui, 18f * ui);
+            // Vertically center the button inside the (now slimmer) title bar
+            var closeTL   = new Vector2(_imgOrigin.X + _canvasW - 20f * ui,
+                                        _imgOrigin.Y + (MeterCanvas.TitleBarH - 18f) * 0.5f * ui);
             ImGui.SetCursorScreenPos(closeTL);
-            if (ImGui.InvisibleButton("##closeBtn", new Vector2(18f * ui, 18f * ui)))
+            if (ImGui.InvisibleButton("##closeBtn", closeSize))
                 _isVisible = false;
             bool hoverClose = ImGui.IsItemHovered();
-            if (hoverClose) dl.AddRectFilled(closeTL, closeTL + new Vector2(18f * ui, 18f * ui), 0x66FF4444);
-            dl.AddText(closeTL + new Vector2(4f * ui, 2f * ui), hoverClose ? 0xFFFFFFFF : 0x88AAAACC, "x");
+            if (hoverClose) dl.AddRectFilled(closeTL, closeTL + closeSize, 0x66FF4444);
+            Vector2 xSize = ImGui.CalcTextSize("x");
+            dl.AddText(closeTL + (closeSize - xSize) * 0.5f, hoverClose ? 0xFFFFFFFF : 0x88AAAACC, "x");
         }
 
         // Restore cursor to end of header so DrawToolbar renders immediately below it

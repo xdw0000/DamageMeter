@@ -428,8 +428,7 @@ public sealed class MeterCanvas : IDisposable
             }
 
             float titleMidY = TitleBarH * 0.5f + 1f;
-            if (!isMinimal)
-                Draw(canvas, "DAMAGE METER", w * 0.5f, titleMidY, 11f, true, TextPrim, Align.Center);
+            Draw(canvas, "DAMAGE METER", w * 0.5f, titleMidY, 11f, true, TextPrim, Align.Center);
             if (isPinned)
                 Draw(canvas, "PINNED", w - 6f, titleMidY, FtSub, true, new SKColor(0xFF, 0xCC, 0x44, 0xFF), Align.Right);
 
