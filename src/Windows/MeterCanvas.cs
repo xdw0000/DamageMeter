@@ -269,6 +269,11 @@ public sealed class MeterCanvas : IDisposable
 
         var canvas = _surface.Canvas;
         canvas.Clear(BgDeep);
+        // IMPORTANT: _surface.Canvas is a persistent object and Clear() does NOT
+        // reset its transform matrix. Without ResetMatrix, canvas.Scale() would
+        // compound every frame (Scale(2) → Scale(4) → Scale(8)…), pushing rows
+        // off the surface on high-DPI displays. Reset before applying our scale.
+        canvas.ResetMatrix();
         canvas.Scale(UiScale, UiScale); // all subsequent draws use logical units
 
         // Compute group total for encounter header
