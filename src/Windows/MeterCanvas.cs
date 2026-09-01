@@ -21,9 +21,9 @@ namespace DamageMeter.Windows;
 public sealed class MeterCanvas : IDisposable
 {
     // ── Section heights ───────────────────────────────────────────────────────
-    public  const float TitleBarH  = 28f;  // exposed: "DAMAGE METER" title strip
-    private const float EncounterH = 64f;  // encounter info — centered single line
-    public  const float HeaderH    = TitleBarH + EncounterH; // 92px total header
+    public  const float TitleBarH  = 20f;  // exposed: "DAMAGE METER" title strip
+    private const float EncounterH = 56f;  // encounter info — zone (14) + gap (4) + total (27) + margins (11)
+    public  const float HeaderH    = TitleBarH + EncounterH; // 76px total header
     private const float DividerH   =  1f;
     public  const float GroupH     = 30f;  // per-group title row
     public  const float RowH       = 66f;  // per-combatant row (Modern/Classic)
@@ -429,7 +429,7 @@ public sealed class MeterCanvas : IDisposable
 
             float titleMidY = TitleBarH * 0.5f + 1f;
             if (!isMinimal)
-                Draw(canvas, "DAMAGE METER", w * 0.5f, titleMidY, 11f, true, new SKColor(0xD8, 0xC4, 0xC6, 0xCC), Align.Center);
+                Draw(canvas, "DAMAGE METER", w * 0.5f, titleMidY, 11f, true, TextPrim, Align.Center);
             if (isPinned)
                 Draw(canvas, "PINNED", w - 6f, titleMidY, FtSub, true, new SKColor(0xFF, 0xCC, 0x44, 0xFF), Align.Right);
 
@@ -463,18 +463,32 @@ public sealed class MeterCanvas : IDisposable
 
         if (session == null)
         {
-            Draw(canvas, "Waiting for combat…", w / 2f, encY + EncounterH * 0.65f, FtMain, false, TextMuted, Align.Center);
+            Draw(canvas, "Waiting for combat…", w / 2f, encY + EncounterH * 0.5f, FtMain, false, TextMuted, Align.Center);
             return;
         }
 
-        float cx   = w * 0.5f;
-        float midY = encY + EncounterH * 0.65f;
+        float cx = w * 0.5f;
+
+        // Content-driven vertical layout: EncounterH = pad + zone line + gap + total line + pad
+        const float EncPadT = 7f, LineGap = 4f;
+        float zoneH  = FtZone + 3f;   // ≈14px zone line
+        float totalH = FtTimer + 5f;  // ≈27px total line (22f bold value)
+        float subY   = encY + EncPadT + zoneH * 0.5f;
+        float midY   = encY + EncPadT + zoneH + LineGap + totalH * 0.5f;
 
         string statusDot = session.IsActive ? "● " : "■ ";
         SKColor dotCol   = session.IsActive ? TextLive : TextEnded;
-        float subY       = encY + EncounterH * 0.30f;
-        Draw(canvas, statusDot,        cx - 4f, subY, 9f,    false, dotCol,    Align.Right);
-        Draw(canvas, session.ZoneName, cx,      subY, FtZone, false, TextMuted, Align.Left);
+
+        // Measure dot + zone as one unit and center the pair horizontally
+        using var dotFont  = Font(9f, false);
+        using var zoneFont = Font(FtZone, false);
+        float dotW   = dotFont.MeasureText(statusDot);
+        float zoneW  = zoneFont.MeasureText(session.ZoneName);
+        float unitW  = dotW + zoneW;
+        float subX   = cx - unitW * 0.5f;
+
+        Draw(canvas, statusDot,        subX + dotW * 0.5f,          subY, 9f,    false, dotCol,    Align.Center);
+        Draw(canvas, session.ZoneName, subX + dotW + zoneW * 0.5f,  subY, FtZone, false, TextMuted, Align.Center);
 
         string metricLabel = $"Total {metric.DisplayName()}:";
         string bigVal      = groupTotal > 0 ? FormatVal((long)groupTotal, metric) : "—";
@@ -489,9 +503,9 @@ public sealed class MeterCanvas : IDisposable
         float totalLineW = labelW + valW2 + timerW;
         float startX     = cx - totalLineW * 0.5f;
 
-        Draw(canvas, metricLabel + " ", startX + labelW * 0.5f,                   midY + 6f, FtMain,  false, TextMuted, Align.Center);
-        Draw(canvas, bigVal,            startX + labelW + valW2 * 0.5f,           midY + 6f, FtTimer, true,  TextTimer, Align.Center);
-        Draw(canvas, timerStr,          startX + labelW + valW2 + timerW * 0.5f,  midY + 6f, FtMain,  false, TextMuted, Align.Center);
+        Draw(canvas, metricLabel + " ", startX + labelW * 0.5f,                   midY, FtMain,  false, TextMuted, Align.Center);
+        Draw(canvas, bigVal,            startX + labelW + valW2 * 0.5f,           midY, FtTimer, true,  TextTimer, Align.Center);
+        Draw(canvas, timerStr,          startX + labelW + valW2 + timerW * 0.5f,  midY, FtMain,  false, TextMuted, Align.Center);
     }
 
     // ── Group header row ──────────────────────────────────────────────────────
