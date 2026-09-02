@@ -118,6 +118,7 @@ public sealed class MeterCanvas : IDisposable
         public bool  ShowGroupHeaders;
         public bool  ShowTitleBar;
         public float ScrollbarW; // reserved right margin when scrollbar is visible (px)
+        public float Opacity;    // 0/omitted → fully opaque; MainWindow passes Config.Opacity
     }
 
     // ── Dynamic header height ─────────────────────────────────────────────────
@@ -136,6 +137,24 @@ public sealed class MeterCanvas : IDisposable
     private RenderSurface?  _surface;
     private readonly TextureManager _tex;
     private readonly SKPaint _p = new() { IsAntialias = true, Style = SKPaintStyle.Fill };
+
+    // Background opacity multiplier (Config.Opacity). Background fills get
+    // alpha ×= _bgAlpha so panels/rows turn translucent while text, job icons,
+    // and data bars keep full opacity and stay crisp.
+    private float _bgAlpha = 1f;
+
+    /// Scale a color's alpha by the current background opacity.
+    private SKColor Bg(SKColor c) => c.WithAlpha((byte)MathF.Round(c.Alpha * _bgAlpha));
+
+    /// Linear gradient whose stop colors are alpha-scaled by background opacity.
+    private SKShader GradBg(SKPoint a, SKPoint b, SKColor[] colors, float[]? positions = null)
+    {
+        var faded = new SKColor[colors.Length];
+        for (int i = 0; i < colors.Length; i++) faded[i] = Bg(colors[i]);
+        return positions != null
+            ? SKShader.CreateLinearGradient(a, b, faded, positions, SKShaderTileMode.Clamp)
+            : SKShader.CreateLinearGradient(a, b, faded, SKShaderTileMode.Clamp);
+    }
 
     // ── Job icon cache ────────────────────────────────────────────────────────
     private readonly Dictionary<byte, SKImage?> _jobIconCache = new();
@@ -267,8 +286,12 @@ public sealed class MeterCanvas : IDisposable
             _surface = new RenderSurface(dispW, h);
         }
 
+        _bgAlpha = opts.Opacity > 0f ? Math.Clamp(opts.Opacity, 0.05f, 1f) : 1f;
         var canvas = _surface.Canvas;
-        canvas.Clear(BgDeep);
+        // Panel backdrop lives in the ImGui window layer (translucent at
+        // Config.Opacity); the canvas starts fully transparent so alpha-faded
+        // fills let the game show through while text/bars stay opaque.
+        canvas.Clear(SKColors.Transparent);
         // IMPORTANT: _surface.Canvas is a persistent object and Clear() does NOT
         // reset its transform matrix. Without ResetMatrix, canvas.Scale() would
         // compound every frame (Scale(2) → Scale(4) → Scale(8)…), pushing rows
@@ -403,15 +426,14 @@ public sealed class MeterCanvas : IDisposable
             // Title bar — dark warm metallic
             if (isMinimal)
             {
-                _p.Color = new SKColor(0x0E, 0x0A, 0x0B, 0xFF);
+                _p.Color = Bg(new SKColor(0x0E, 0x0A, 0x0B, 0xFF));
                 canvas.DrawRect(SKRect.Create(0, 0, w, TitleBarH), _p);
             }
             else
             {
-                _p.Shader = SKShader.CreateLinearGradient(
+                _p.Shader = GradBg(
                     new SKPoint(0, 0), new SKPoint(w, 0),
-                    new[] { new SKColor(0x22, 0x18, 0x1A, 0xFF), new SKColor(0x18, 0x14, 0x16, 0xFF) },
-                    SKShaderTileMode.Clamp);
+                    new[] { new SKColor(0x22, 0x18, 0x1A, 0xFF), new SKColor(0x18, 0x14, 0x16, 0xFF) });
                 canvas.DrawRect(SKRect.Create(0, 0, w, TitleBarH), _p);
                 _p.Shader = null;
             }
@@ -419,10 +441,9 @@ public sealed class MeterCanvas : IDisposable
             // Top-edge specular stripe
             if (!isMinimal)
             {
-                _p.Shader = SKShader.CreateLinearGradient(
+                _p.Shader = GradBg(
                     new SKPoint(0, 0), new SKPoint(w, 0),
-                    new[] { new SKColor(0xC8, 0x78, 0x60, 0xFF), new SKColor(0xA0, 0x70, 0x78, 0xFF) },
-                    SKShaderTileMode.Clamp);
+                    new[] { new SKColor(0xC8, 0x78, 0x60, 0xFF), new SKColor(0xA0, 0x70, 0x78, 0xFF) });
                 canvas.DrawRect(SKRect.Create(0, 0, w, 2f), _p);
                 _p.Shader = null;
             }
@@ -433,12 +454,12 @@ public sealed class MeterCanvas : IDisposable
                 Draw(canvas, "PINNED", w - 6f, titleMidY, FtSub, true, new SKColor(0xFF, 0xCC, 0x44, 0xFF), Align.Right);
 
             // Bottom border of title bar
-            _p.Color = new SKColor(0x38, 0x28, 0x2A, 0xFF);
+            _p.Color = Bg(new SKColor(0x38, 0x28, 0x2A, 0xFF));
             canvas.DrawRect(SKRect.Create(0, TitleBarH - 1f, w, 1f), _p);
         }
 
         // Bottom divider (drawn after title bar, before rows)
-        _p.Color = new SKColor(0x3A, 0x28, 0x2A, 0xFF);
+        _p.Color = Bg(new SKColor(0x3A, 0x28, 0x2A, 0xFF));
         canvas.DrawRect(SKRect.Create(0, effectiveHeaderH, w, DividerH), _p);
 
         if (!opts.ShowEncounterTotal) return; // encounter area fully collapsed
@@ -447,15 +468,14 @@ public sealed class MeterCanvas : IDisposable
         float encY = showTitleBar ? TitleBarH : 0f;
         if (isMinimal)
         {
-            _p.Color = new SKColor(0x12, 0x0E, 0x0F, 0xFF);
+            _p.Color = Bg(new SKColor(0x12, 0x0E, 0x0F, 0xFF));
             canvas.DrawRect(SKRect.Create(0, encY, w, EncounterH), _p);
         }
         else
         {
-            _p.Shader = SKShader.CreateLinearGradient(
+            _p.Shader = GradBg(
                 new SKPoint(0, encY), new SKPoint(0, encY + EncounterH),
-                new[] { BgHeader1, BgHeader2 },
-                SKShaderTileMode.Clamp);
+                new[] { BgHeader1, BgHeader2 });
             canvas.DrawRect(SKRect.Create(0, encY, w, EncounterH), _p);
             _p.Shader = null;
         }
@@ -516,19 +536,18 @@ public sealed class MeterCanvas : IDisposable
 
         if (isMinimal)
         {
-            _p.Color = new SKColor(0x14, 0x10, 0x11, 0xFF);
+            _p.Color = Bg(new SKColor(0x14, 0x10, 0x11, 0xFF));
             canvas.DrawRect(SKRect.Create(0, y, w, GroupH), _p);
             // Bottom separator
-            _p.Color = new SKColor(0x28, 0x20, 0x22, 0xFF);
+            _p.Color = Bg(new SKColor(0x28, 0x20, 0x22, 0xFF));
             canvas.DrawRect(SKRect.Create(0, y + GroupH - 1f, w, 1f), _p);
         }
         else
         {
             // Group header — dark warm metallic strip with subtle accent bleed
-            _p.Shader = SKShader.CreateLinearGradient(
+            _p.Shader = GradBg(
                 new SKPoint(0, 0), new SKPoint(w * 0.35f, 0),
-                new[] { new SKColor(0x28, 0x1C, 0x1E, 0xFF), BgGroup },
-                SKShaderTileMode.Clamp);
+                new[] { new SKColor(0x28, 0x1C, 0x1E, 0xFF), BgGroup });
             canvas.DrawRect(SKRect.Create(0, y, w, GroupH), _p);
             _p.Shader = null;
         }
@@ -603,24 +622,22 @@ public sealed class MeterCanvas : IDisposable
         // ── Modern / Classic style ────────────────────────────────────────────
 
         // ── 1. Card metallic base ─────────────────────────────────────────────
-        _p.Color  = MetalBase;
+        _p.Color  = Bg(MetalBase);
         _p.Shader = null;
         canvas.DrawRoundRect(cardRect, CardR, CardR, _p);
 
         // ── 2. Horizontal metallic gradient (copper-warm left → silver-cool right)
-        _p.Shader = SKShader.CreateLinearGradient(
+        _p.Shader = GradBg(
             new SKPoint(cardX, 0), new SKPoint(cardX + cardW, 0),
             new[] { MetalWarm, new SKColor(0, 0, 0, 0), MetalCool },
-            new[] { 0f, 0.42f, 1f },
-            SKShaderTileMode.Clamp);
+            new[] { 0f, 0.42f, 1f });
         canvas.DrawRoundRect(cardRect, CardR, CardR, _p);
         _p.Shader = null;
 
         // ── 2b. Top specular highlight strip ──────────────────────────────────
-        _p.Shader = SKShader.CreateLinearGradient(
+        _p.Shader = GradBg(
             new SKPoint(0, cardY), new SKPoint(0, cardY + CardH * 0.40f),
-            new[] { MetalSpec.WithAlpha(0x60), new SKColor(0, 0, 0, 0) },
-            SKShaderTileMode.Clamp);
+            new[] { MetalSpec.WithAlpha(0x60), new SKColor(0, 0, 0, 0) });
         canvas.DrawRoundRect(cardRect, CardR, CardR, _p);
         _p.Shader = null;
 
@@ -634,10 +651,9 @@ public sealed class MeterCanvas : IDisposable
                 3 => Bronze.WithAlpha(0x38),
                 _ => new SKColor(0x88, 0x80, 0x82, 0x18),
             };
-            _p.Shader = SKShader.CreateLinearGradient(
+            _p.Shader = GradBg(
                 new SKPoint(cardX, 0), new SKPoint(cardX + cardW * 0.55f, 0),
-                new[] { rankTint, new SKColor(0, 0, 0, 0) },
-                SKShaderTileMode.Clamp);
+                new[] { rankTint, new SKColor(0, 0, 0, 0) });
             canvas.DrawRoundRect(cardRect, CardR, CardR, _p);
             _p.Shader = null;
         }
@@ -656,7 +672,7 @@ public sealed class MeterCanvas : IDisposable
                 {
                     float t     = (dx - cardX) / (dotFadeEnd - cardX); // 0 at left, 1 at fadeEnd
                     byte  alpha = (byte)(dotBase * (1f - t));
-                    _p.Color = new SKColor(0x10, 0x08, 0x09, alpha);
+                    _p.Color = Bg(new SKColor(0x10, 0x08, 0x09, alpha));
                     canvas.DrawCircle(dx, dy, dotR, _p);
                 }
             }
@@ -666,7 +682,7 @@ public sealed class MeterCanvas : IDisposable
         // ── 4. Dark border stroke ─────────────────────────────────────────────
         _p.Style       = SKPaintStyle.Stroke;
         _p.StrokeWidth = 1.2f;
-        _p.Color       = new SKColor(0x08, 0x05, 0x06, 0xCC);
+        _p.Color       = Bg(new SKColor(0x08, 0x05, 0x06, 0xCC));
         canvas.DrawRoundRect(cardRect, CardR, CardR, _p);
         _p.Style = SKPaintStyle.Fill;
 
@@ -791,7 +807,7 @@ public sealed class MeterCanvas : IDisposable
         // ── 9. Card border (subtle accent rim) ────────────────────────────────
         _p.Style       = SKPaintStyle.Stroke;
         _p.StrokeWidth = 1f;
-        _p.Color       = (isLocal ? LocalAccent : accent).WithAlpha(0x35);
+        _p.Color       = Bg((isLocal ? LocalAccent : accent).WithAlpha(0x35));
         canvas.DrawRoundRect(cardRect, CardR, CardR, _p);
         _p.Style = SKPaintStyle.Fill;
 
@@ -814,9 +830,9 @@ public sealed class MeterCanvas : IDisposable
         float effW = w - opts.ScrollbarW; // content width excluding scrollbar track
 
         // Row background — alternating (full width)
-        _p.Color = rowIdx % 2 == 0
+        _p.Color = Bg(rowIdx % 2 == 0
             ? new SKColor(0x1C, 0x16, 0x18, 0xFF)
-            : new SKColor(0x18, 0x12, 0x14, 0xFF);
+            : new SKColor(0x18, 0x12, 0x14, 0xFF));
         canvas.DrawRect(SKRect.Create(0, y, w, rowH), _p);
 
         // Bar as background fill (proportional width, within effW)
@@ -828,7 +844,7 @@ public sealed class MeterCanvas : IDisposable
         }
 
         // Bottom separator
-        _p.Color = new SKColor(0x28, 0x20, 0x22, 0xFF);
+        _p.Color = Bg(new SKColor(0x28, 0x20, 0x22, 0xFF));
         canvas.DrawRect(SKRect.Create(0, y + rowH - 1f, w, 1f), _p);
 
         // Rank number

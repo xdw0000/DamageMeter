@@ -300,6 +300,7 @@ public sealed class MainWindow : IDisposable
             ShowEncounterTotal = Config.ShowEncounterTotal,
             ShowGroupHeaders   = Config.ShowGroupHeaders,
             ShowTitleBar       = Config.ShowTitleBar,
+            Opacity            = Config.Opacity,
         };
 
         _headerH = MeterCanvas.GetEffectiveHeaderH(opts) * ui;
@@ -332,13 +333,12 @@ public sealed class MainWindow : IDisposable
 
         _imgOrigin = ImGui.GetCursorScreenPos();
 
-        // Draw the header slice — toolbar will be placed right after this by Draw()
-        // Tint alpha = Config.Opacity so the meter content (entries included)
-        // fades together with the main window background.
+        // Draw the header slice — toolbar will be placed right after this by Draw().
+        // Translucency is baked into the canvas (background fills only), so text
+        // and bars render at full opacity here.
         if (_headerH > 0f)
             ImGui.Image(_meter.Handle.Value, new Vector2(_canvasW, _headerH),
-                new Vector2(0f, 0f), new Vector2(1f, _headerH / _texH),
-                new Vector4(1f, 1f, 1f, Config.Opacity));
+                new Vector2(0f, 0f), new Vector2(1f, _headerH / _texH));
 
         // Title bar overlay buttons (drag + close) — placed over the header image
         if (Config.ShowTitleBar)
@@ -387,8 +387,7 @@ public sealed class MainWindow : IDisposable
                 float uv0y = (_headerH + _scrollY) / _texH;
                 float uv1y = Math.Min(1f, (_headerH + _scrollY + displayBodyH) / _texH);
                 ImGui.Image(_meter.Handle.Value, new Vector2(_canvasW, displayBodyH),
-                    new Vector2(0f, uv0y), new Vector2(1f, uv1y),
-                    new Vector4(1f, 1f, 1f, Config.Opacity));
+                    new Vector2(0f, uv0y), new Vector2(1f, uv1y));
             }
         }
 
