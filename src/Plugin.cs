@@ -62,6 +62,9 @@ public sealed class Plugin : IDalamudPlugin
         // Clear any history-window pin the moment a fresh combat session starts —
         // the user clearly wants live data once they swing again.
         Tracker.OnSessionStarted += _ => _historyWindow.ClearPin();
+        // Same event re-enables MainWindow's "show last pull while idle" fallback
+        // after the toolbar Clear button blanked the meter.
+        Tracker.OnSessionStarted += _ => _mainWindow.ResumeRecentFallback();
 
         CommandManager.AddHandler(CmdMain, new Dalamud.Game.Command.CommandInfo(OnMainCommand)
         {

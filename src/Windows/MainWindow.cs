@@ -51,6 +51,12 @@ public sealed class MainWindow : IDisposable
     private float _scrollY = 0f;
     private const float ToolbarH = 26f;
 
+    // While true (default), an idle meter shows the most recent pull from
+    // TempSessions. The toolbar "Clear" button flips this off so the meter
+    // stays blank after a manual clear; Plugin re-enables it the moment a new
+    // combat session starts (ResumeRecentFallback).
+    private bool _showRecentFallback = true;
+
     // Layout state shared between DrawCanvasHeader and DrawCanvasBody
     private Vector2 _imgOrigin;
     private Vector2 _bodyOrigin;
@@ -148,6 +154,7 @@ public sealed class MainWindow : IDisposable
         const float BtnView     = 44f;   // "Chart" / "Graph" — each
         const float BtnHistory  = 62f;
         const float BtnSettings = 68f;
+        const float BtnClear    = 56f;   // "Clear"
         const float BtnSpacing  =  4f;
         const float RightMargin =  8f;
 
@@ -157,8 +164,8 @@ public sealed class MainWindow : IDisposable
         float comboW = avail
             - (pinnedHistory ? BtnLive + BtnSpacing : 0)
             - BtnView * 2
-            - BtnHistory - BtnSettings
-            - BtnSpacing * 4f - RightMargin;
+            - BtnHistory - BtnSettings - BtnClear
+            - BtnSpacing * 5f - RightMargin;
         comboW = Math.Max(0f, comboW);
 
         ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 4f * ui);
@@ -206,6 +213,10 @@ public sealed class MainWindow : IDisposable
         if (ImGui.Button("Settings##tb", new Vector2(BtnSettings * ui, 0)))
             _plugin._settingsWindow.IsVisible = !_plugin._settingsWindow.IsVisible;
 
+        ImGui.SameLine(0, BtnSpacing * ui);
+        if (ImGui.Button("Clear##tb", new Vector2(BtnClear * ui, 0)))
+            ClearStats();
+
         ImGui.PopStyleColor(5);
         ImGui.PopStyleVar(2);
 
@@ -226,6 +237,20 @@ public sealed class MainWindow : IDisposable
             _plugin.SaveConfig();
         }
         if (active) ImGui.PopStyleColor(2);
+    }
+
+    // ── Clear button handler ─────────────────────────────────────────────────
+    // Wipes the currently shown stats: unpins any viewed history session,
+    // discards the live pull without archiving it (CombatTracker restarts a
+    // fresh one if combat is still running), and — when idle — keeps the meter
+    // blank instead of re-showing the last recent pull.
+    private void ClearStats()
+    {
+        _plugin._historyWindow.ClearPin();
+        bool hadLiveStats = Tracker.ActiveSession != null;
+        Tracker.ClearActiveSession();
+        if (!hadLiveStats)
+            _showRecentFallback = false;
     }
 
     // ── Phase 1: render canvas + draw header slice ────────────────────────────
@@ -742,7 +767,12 @@ public sealed class MainWindow : IDisposable
     private CombatSession? GetDisplaySession()
         => _plugin._historyWindow.PinnedSession
         ?? Tracker.ActiveSession
-        ?? Tracker.Store.TempSessions.LastOrDefault();
+        ?? (_showRecentFallback ? Tracker.Store.TempSessions.LastOrDefault() : null);
+
+    /// <summary>Called by Plugin when a new combat session starts, so the
+    /// normal "last pull stays visible while idle" behavior returns after a
+    /// manual Clear blanked the meter.</summary>
+    internal void ResumeRecentFallback() => _showRecentFallback = true;
 
     internal static string FormatNumber(long n) => n switch
     {

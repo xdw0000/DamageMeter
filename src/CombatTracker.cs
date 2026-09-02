@@ -513,6 +513,29 @@ public sealed class CombatTracker : IDisposable
             Store.TempSessions.RemoveAt(0);
     }
 
+    // ── Manual clear (toolbar "Clear" button) ────────────────────────────────
+    // Wipes the current live stats. The in-progress pull is discarded WITHOUT
+    // archiving it to Recent history; if we are still in combat a fresh session
+    // starts immediately so the meter counts up from zero from now on.
+    public void ClearActiveSession()
+    {
+        if (ActiveSession == null) return;
+
+        _activeDots.Clear();
+        _dotSim.EndSession();          // drop any scheduled DoT/HoT ticks
+        _localCritHits = _localDhHits = _localTotalHits = 0;
+        try { _combatLog.EndSession(); }
+        catch (Exception ex) { _log.Warning($"DamageMeter: CombatLog close on clear failed — {ex.Message}"); }
+
+        _log.Info($"DamageMeter: Cleared active session — {ActiveSession.Id}");
+        ActiveSession = null;
+
+        // Still in combat? Start over from zero right now so Clear doubles as a
+        // mid-fight reset (e.g. re-timing a pull without dropping combat).
+        if (_condition[ConditionFlag.InCombat])
+            StartSession();
+    }
+
     // ── UseAction hook (button-press logger) ──────────────────────────────────
     // Fires for every action the local ActionManager attempts. We only LOG when
     // a session is active and the caller is the local player — enough to
